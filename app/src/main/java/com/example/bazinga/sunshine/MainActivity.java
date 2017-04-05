@@ -42,7 +42,7 @@ import com.example.bazinga.sunshine.utilities.SunshineDateUtils;
 
 import java.net.URL;
 
-public class MainActivity extends AppCompatActivity implements ForecastAdapter.ForecastAdapterOnClickHandler ,LoaderManager.LoaderCallbacks{
+public class MainActivity extends AppCompatActivity implements ForecastAdapter.ForecastAdapterOnClickHandler ,LoaderManager.LoaderCallbacks<String[]>{
 
     private static final String TAG = "MainAcitivity";
 
@@ -55,6 +55,8 @@ public class MainActivity extends AppCompatActivity implements ForecastAdapter.F
     private ProgressBar mLoadingIndicator;
 
     private static final String SEARCH_QUERY_URL_EXTRA = "location"; // 用于给 AsyncLoader 传递数值的键
+
+    private static final int WEATHER_SEARCH_LOADER = 22;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,7 +85,39 @@ public class MainActivity extends AppCompatActivity implements ForecastAdapter.F
 
         mRecyclerView.setAdapter(mForecastAdapter);
 
-        loadWeatherData();
+         /*
+         * This ID will uniquely identify the Loader. We can use it, for example, to get a handle
+         * on our Loader at a later point in time through the support LoaderManager.
+         */
+        int loaderId = WEATHER_SEARCH_LOADER;
+
+        /*
+         * From MainActivity, we have implemented the LoaderCallbacks interface with the type of
+         * String array. (implements LoaderCallbacks<String[]>) The variable callback is passed
+         * to the call to initLoader below. This means that whenever the loaderManager has
+         * something to notify us of, it will do so through this callback.
+         */
+        LoaderManager.LoaderCallbacks<String[]> callback = MainActivity.this;
+
+        /*
+         * The second parameter of the initLoader method below is a Bundle. Optionally, you can
+         * pass a Bundle to initLoader that you can then access from within the onCreateLoader
+         * callback. In our case, we don't actually use the Bundle, but it's here in case we wanted
+         * to.
+         */
+        Bundle bundleForLoader = null;
+
+        /*
+         * Ensures a loader is initialized and active. If the loader doesn't already exist, one is
+         * created and (if the activity/fragment is currently started) starts the loader. Otherwise
+         * the last created loader is re-used.
+         */
+
+        getSupportLoaderManager().initLoader(loaderId, bundleForLoader, callback);
+
+        Log.d(TAG, "onCreate: registering preference changed listener");
+
+       // loadWeatherData();
     }
 
     private void loadWeatherData() {
@@ -91,6 +125,25 @@ public class MainActivity extends AppCompatActivity implements ForecastAdapter.F
         String location = SunshinePreferences.getPreferredWeatherLocation(this);
 
         new FetchWeatherTask().execute(location);
+//
+//        Bundle queryBundle = new Bundle();
+//
+//        queryBundle.putString(SEARCH_QUERY_URL_EXTRA, location);
+//
+//        LoaderManager loaderManager = getSupportLoaderManager();
+//
+//        Loader<String[]> WeatherSearchLoader = loaderManager.getLoader(WEATHER_SEARCH_LOADER);
+//
+//        loaderManager.initLoader(WEATHER_SEARCH_LOADER, queryBundle, this);
+
+//        if (WeatherSearchLoader == null) {
+//
+//            loaderManager.initLoader(WEATHER_SEARCH_LOADER, queryBundle, this);
+//
+//        } else {
+//
+//            loaderManager.restartLoader(WEATHER_SEARCH_LOADER, queryBundle, this);
+//        }
     }
 
     @Override
@@ -109,23 +162,33 @@ public class MainActivity extends AppCompatActivity implements ForecastAdapter.F
     }
 
     @Override
-    public Loader onCreateLoader(int id, final Bundle args) {
+    public Loader<String[]>  onCreateLoader(int id, final Bundle args) {
         return new AsyncTaskLoader<String[]>(this) {
+
+            /* This String array will hold and help cache our weather data */
+            String[] mWeatherData = null;
 
             @Override
             protected void onStartLoading() {
 
-                if (args == null)
+                if (mWeatherData != null) { // 当旋转屏幕时可以和 AdyncTask 对比比较
 
-                    return;
+                    deliverResult(mWeatherData);
 
-                mLoadingIndicator.setVisibility(View.VISIBLE);
+                } else {
+
+                    mLoadingIndicator.setVisibility(View.VISIBLE);
+
+                    forceLoad();   // 不写这个会导致 ui 一直加载
+                }
+
             }
 
             @Override
             public String[] loadInBackground() {
 
-                String location =  args.getString(SEARCH_QUERY_URL_EXTRA);
+                String location = SunshinePreferences
+                        .getPreferredWeatherLocation(MainActivity.this);
 
                 if (location == null || TextUtils.isEmpty(location))
 
@@ -150,20 +213,42 @@ public class MainActivity extends AppCompatActivity implements ForecastAdapter.F
 
 
             }
+
+            public void deliverResult(String[] data) {
+
+                mWeatherData = data;
+
+                super.deliverResult(data);
+            }
         };
     }
 
     @Override
-    public void onLoadFinished(Loader loader, Object data) {
+    public void onLoadFinished(Loader<String[]> loader, String[] weatherData) {
 
         mLoadingIndicator.setVisibility(View.INVISIBLE);
-        
+
+        mForecastAdapter.setDatas(weatherData);
+
+        if(weatherData == null) {
+
+            showErrorMessage();
+
+            return;
+
+        }else {
+
+            showWeatherDataView();
+
+        }
+
     }
 
     @Override
-    public void onLoaderReset(Loader loader) {
+    public void onLoaderReset(Loader<String[]> loader) {
 
     }
+
 
     // TODO (8) Create a method that will get the user's preferred location and execute your new AsyncTask and call it loadWeatherData
 
@@ -241,9 +326,9 @@ public class MainActivity extends AppCompatActivity implements ForecastAdapter.F
 
         if(id  == R.id.acion_fresh){
 
-            mForecastAdapter.setDatas(null);
+            invalidateData();
 
-            loadWeatherData();
+            getSupportLoaderManager().restartLoader(WEATHER_SEARCH_LOADER, null, this);
 
             return true;
         }
@@ -299,5 +384,10 @@ public class MainActivity extends AppCompatActivity implements ForecastAdapter.F
         mRecyclerView.setVisibility(View.INVISIBLE);
         /* Then, show the error */
         mErrorMessageDisplay.setVisibility(View.VISIBLE);
+    }
+
+    private void invalidateData() {
+
+        mForecastAdapter.setDatas(null);
     }
 }

@@ -3,21 +3,53 @@
     package="com.example.bazinga.sunshine">
 
     <uses-permission android:name="android.permission.INTERNET" />
-
+    <uses-permission android:name="com.example.bazinga.sunshine.READ_DATABASE"/>
+    <uses-permission android:name="com.example.bazinga.sunshine.WRITE_DATABASE"/>
+    <uses-permission android:name="android.permission.READ_CONTACTS"/>
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
-        <activity android:name=".MainActivity">
+        <activity android:name=".MainActivity"
+            android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".DetailForecastActivity"></activity>
+
+        <provider
+            android:name=".data.WeatherProvider"
+            android:authorities="@string/content_authority"
+            android:exported="false"/>
+
+        <!--
+        指定 ParentActivity 的作用是用于开启子 Activity后 按返回键 回到 ParentMainActivity
+        -->
+
+        <activity
+            android:name=".DetailForecastActivity"
+            android:parentActivityName=".MainActivity">
+        <meta-data
+            android:name="android.support.PARENT_ACTIVITY"
+            android:value=".MainActivity"/>
+        </activity>
+
+        <activity android:name=".SettingsActivity"></activity>
+        <!-- Our ContentProvider -->
+
+        <service
+                   android:name=".sync.SunshineSyncIntentService"
+                   android:exported="false" />
+
+        <service android:name=".sync.SunshineFirebaseJobService"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
     </application>
+
+
 
 </manifest>
